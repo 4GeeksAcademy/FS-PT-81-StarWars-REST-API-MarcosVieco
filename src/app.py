@@ -8,7 +8,7 @@ from flask_swagger import swagger
 from flask_cors import CORS
 from utils import APIException, generate_sitemap
 from admin import setup_admin
-from models import db, Persons, Planets, Favourites
+from models import db, Persons, Planets, Favourite_persons, Users
 #from models import Person
 
 app = Flask(__name__)
@@ -36,6 +36,8 @@ def handle_invalid_usage(error):
 def sitemap():
     return generate_sitemap(app)
 
+# gets de cada tabla
+
 @app.route('/persons', methods=['GET'])
 def get_persons():
     data = Persons.query.all()
@@ -48,11 +50,13 @@ def get_planets():
     data = [planet.serialize() for planet in data]
     return jsonify({"msg": "OK", "data": data}), 200
 
-@app.route('/favourites', methods=['GET'])
+@app.route('/favourites_person', methods=['GET'])
 def get_favs():
-    data = Favourites.query.all()
+    data = Favourite_persons.query.all()
     data = [fav.serialize() for fav in data]
     return jsonify({"msg": "OK", "data": data}), 200
+
+# gets de cada tabla por id
 
 @app.route('/persons/<int:id>', methods=['GET'])
 def one_person(id):
@@ -63,6 +67,13 @@ def one_person(id):
 def one_planet(id):
     data = Planets.query.get(id)
     return jsonify({"msg": "one planet with id: " + str(id), "person": data.serialize()})
+
+@app.route('/favourites_person/<int:id>', methods=['GET'])
+def one_fav_person(id):
+    data = Favourite_persons.query.get(id)
+    return jsonify({"msg": "one person with id: " + str(id), "person": data.serialize()})
+
+# post de cada tabla por 
 
 @app.route('/persons', methods=['POST'])
 def create_person():
@@ -98,6 +109,33 @@ def create_planet():
     return jsonify({"msg": "OK", "data": new_planet.serialize()}), 200
 
 
+@app.route('/favourites_person', methods=['POST'])
+def create_fav_person():
+    
+    user_id = request.json.get('user_id', None)
+    person_id = request.json.get('person_id', None)
+
+    exists = Favourite_persons.query.filter_by(user_id= user_id, person_id=person_id).first()
+    if exists: 
+        return jsonify({"msg": "este personaje ya es favorito de este user"}), 400
+
+    user_exists = Users.query.filter_by(id=user_id).first()
+    if not user_exists: 
+        return jsonify({"msg": "este usuario no existe"}), 400
+
+    person_exists = Persons.query.filter_by(id=person_id).first()
+    if not person_exists: 
+        return jsonify({"msg": "este personaje no existe"}), 400
+    
+    new_fav_person = Favourite_persons(user_id= user_id, person_id=person_id)
+
+    db.session.add(new_fav_person)
+    db.session.commit()
+
+    return jsonify({"msg": "OK", "data": new_fav_person.serialize()}), 200
+
+# delete de cada tabla por id
+
 @app.route('/persons/<int:id>', methods=['DELETE'])
 def delete_person(id):
     data = Persons.query.get(id)
@@ -108,6 +146,13 @@ def delete_person(id):
 @app.route('/planets/<int:id>', methods=['DELETE'])
 def delete_planet(id):
     data = Planets.query.get(id)
+    db.session.delete(data)
+    db.session.commit()
+    return jsonify({"msg": "planet deleted with id: " + str(id)}), 200
+
+@app.route('/favourites_person/<int:id>', methods=['DELETE'])
+def delete_fav_person(id):
+    data = Favourite_persons.query.get(id)
     db.session.delete(data)
     db.session.commit()
     return jsonify({"msg": "planet deleted with id: " + str(id)}), 200
